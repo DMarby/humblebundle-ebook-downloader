@@ -1,0 +1,20 @@
+{
+  "name": "humblebundle-ebook-downloader",
+  "version": "0.0.1",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DMarby/humblebundle-ebook-downloader.git"
+  },
+  "author": "David Marby <david@dmarby.se> http://dmarby.se",
+  "dependencies": {
+    "commander": "^2.2.0",
+    "unirest": "^0.3.0",
+    "async": "^0.9.0",
+    "inquirer": "^0.8.0"
+  }
+}
