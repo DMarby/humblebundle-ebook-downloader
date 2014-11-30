@@ -47,6 +47,9 @@ unirest
         next(null, response.body)
       })
     }, function (error, order_list) {
+      if (error) {
+        return console.log('Error using the humblebundle API, invalid session cookie?')
+      }
       
       orders = order_list
       var options = []
@@ -57,32 +60,46 @@ unirest
       
       inquirer.prompt({ type: 'list', name: 'bundle', message: 'Select a bundle to download', choices: options }, function (answers) {
         var downloads = orders.filter(function (item) { return answers.bundle == item.product.human_name })[0].subproducts
-        async.eachLimit(downloads, commander.download_limit, function (download, next) {
-          if (download.downloads.length > 1) {
-            console.log('More than one download for %s', download.human_name)
+        
+        async.eachLimit(downloads, commander.download_limit, function (download, next) {  
+          var filename = download.downloads[0].machine_name + '.' + commander.format.toLowerCase()
+          filename = filename.replace(/\.pdf \(hd\)/,'.pdf')
+          var download_url = download.downloads[0].download_struct.filter(function (item) { return item.name.toLowerCase() == commander.format.toLowerCase() })
+          
+          if (download_url.length < 1) {
+            var types = []
+            download.downloads[0].download_struct.forEach(function (item) {
+              if (types.indexOf(item.name.toLowerCase()) === -1) {
+                types.push(item.name.toLowerCase())
+              }
+            })
+            console.log('No download of this format found for %s (%s of %s) Formats available: %s', download.human_name, (i++ + 1), downloads.length, types.join(', '))
+            return next()
           }
           
-          var filename = download.downloads[0].machine_name + '.' + commander.format.toLowerCase()
-          var url = download.downloads[0].download_struct.filter(function (item) { return item.name.toLowerCase() == commander.format.toLowerCase() })[0].url.web
+          var url = download_url[0].url.web
+          var file = fs.createWriteStream(path.resolve(commander.download_folder, filename))
   
           console.log('Downloading %s (%s of %s) - %s', download.human_name, (i++ + 1), downloads.length, filename)
 
-          var file = fs.createWriteStream(path.resolve(commander.download_folder, filename))
-          
-          var handleDownload = function (response) {
+          if (download.downloads.length > 1) {
+            console.log('More than one download for %s', download.human_name)
+          }
+
+          https.get(url, function (response) {
             response.pipe(file)
             file.on('finish', function () {
               file.close(function () {
                 next()
               })
             })
-          }
-
-          https.get(url, handleDownload)
+          })
         }, function (err) {
           console.log('Done!')
         })
       })
     })
+  } else {
+    console.log('Error using the humblebundle API, invalid session cookie?')
   }
 })
