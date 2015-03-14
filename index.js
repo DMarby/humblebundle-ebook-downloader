@@ -8,6 +8,7 @@ var exec = require('child_process').exec
 var pjson = require('./package.json')
 var path = require('path')
 var https = require('https')
+var striptags = require('striptags')
 
 commander
   .version(pjson.version)
@@ -59,11 +60,15 @@ unirest
       })
       
       inquirer.prompt({ type: 'list', name: 'bundle', message: 'Select a bundle to download', choices: options }, function (answers) {
-        var downloads = orders.filter(function (item) { return answers.bundle == item.product.human_name })[0].subproducts
+        var downloads = orders.filter(function (item) { 
+          return answers.bundle == item.product.human_name 
+        })[0].subproducts.filter(function (item) {
+          return item.downloads.length
+        })
         
-        async.eachLimit(downloads, commander.download_limit, function (download, next) {  
-          var filename = download.downloads[0].machine_name + '.' + commander.format.toLowerCase()
-          filename = filename.replace(/\.pdf \(hd\)/,'.pdf')
+        async.eachLimit(downloads, commander.download_limit, function (download, next) {
+          var human_name = striptags(download.human_name)
+          var filename = (download.downloads[0].machine_name + '.' + commander.format.toLowerCase()).replace(/\.pdf \(hd\)/,'.pdf')
           var download_url = download.downloads[0].download_struct.filter(function (item) { return item.name.toLowerCase() == commander.format.toLowerCase() })
           
           if (download_url.length < 1) {
@@ -73,17 +78,18 @@ unirest
                 types.push(item.name.toLowerCase())
               }
             })
-            console.log('No download of this format found for %s (%s of %s) Formats available: %s', download.human_name, (i++ + 1), downloads.length, types.join(', '))
+
+            console.log('No download of this format found for %s (%s of %s) Formats available: %s', human_name, (i++ + 1), downloads.length, types.join(', '))
             return next()
           }
           
           var url = download_url[0].url.web
           var file = fs.createWriteStream(path.resolve(commander.download_folder, filename))
   
-          console.log('Downloading %s (%s of %s) - %s', download.human_name, (i++ + 1), downloads.length, filename)
+          console.log('Downloading %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
 
           if (download.downloads.length > 1) {
-            console.log('More than one download for %s', download.human_name)
+            console.log('More than one download for %s', human_name)
           }
 
           https.get(url, function (response) {
@@ -94,7 +100,7 @@ unirest
               })
             })
           })
-        }, function (err) {
+        }, function (error) {
           console.log('Done!')
         })
       })
