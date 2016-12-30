@@ -12,10 +12,11 @@ var striptags = require('striptags')
 
 commander
   .version(pjson.version)
-  .option('-a, --auth_token <auth_token>', 'Authentication cookie (_simpleauth_sess)')
   .option('-d, --download_folder <downloader_folder>', 'Download folder', 'download')
+  .option('-a, --auth_token <auth_token>', 'Authentication cookie (_simpleauth_sess)')
   .option('-l, --download_limit <download_limit>', 'Paralell download limit', 5)
   .option('-f, --format <format>', 'What format to download the ebook in', 'EPUB')
+  .option('-m, --title_matches <title_matches>', 'Title Matches', '')
   .parse(process.argv)
 
 if (!commander.auth_token) {
@@ -52,7 +53,8 @@ unirest
         return console.log('Error using the humblebundle API, invalid session cookie?')
       }
       
-      orders = order_list
+      orders = order_list.filter(function(item) { return item.product.human_name.toLowerCase().match(commander.title_matches.toLowerCase()) })
+ 
       var options = []
       
       orders.forEach(function (order) {
