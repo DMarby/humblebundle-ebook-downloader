@@ -52,8 +52,12 @@ unirest
       if (error) {
         return console.log('Error using the humblebundle API, invalid session cookie?')
       }
-      
+
+      var precount = order_list.length
       orders = order_list.filter(function(item) { return item.product.human_name.toLowerCase().match(commander.title_matches.toLowerCase()) })
+      var postcount = orders.length
+
+      console.log("%s of %s shown", postcount, precount)
  
       var options = []
       
@@ -85,11 +89,10 @@ unirest
             return next()
           }
           
-          var url = download_url[0].url.web
-          var file = fs.createWriteStream(path.resolve(commander.download_folder, filename))
-  
+          var url = download_url[0].url.web  
           console.log('Downloading %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
 
+          var file = fs.createWriteStream(path.resolve(commander.download_folder, filename))
           if (download.downloads.length > 1) {
             console.log('More than one download for %s', human_name)
           }
