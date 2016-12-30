@@ -14,7 +14,7 @@ commander
   .version(pjson.version)
   .option('-d, --download_folder <downloader_folder>', 'Download folder', 'download')
   .option('-a, --auth_token <auth_token>', 'Authentication cookie (_simpleauth_sess)')
-  .option('-l, --download_limit <download_limit>', 'Paralell download limit', 5)
+  .option('-l, --download_limit <download_limit>', 'Parallel download limit', 5)
   .option('-f, --format <format>', 'What format to download the ebook in', 'EPUB')
   .option('-m, --title_matches <title_matches>', 'Title Matches', '')
   .parse(process.argv)
