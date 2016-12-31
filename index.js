@@ -4,7 +4,6 @@ var inquirer = require('inquirer')
 var unirest = require('unirest')
 var readline = require('readline')
 var fs = require('fs')
-var exec = require('child_process').exec
 var pjson = require('./package.json')
 var path = require('path')
 var https = require('https')
@@ -100,7 +99,8 @@ function fetch_books(order_list) {
       }
 
       var download_path = path.resolve(commander.download_folder, filename)
-      if (fs.existsSync(download_path)) {
+      var exists = fs.existsSync(download_path) && fs.statSync(download_path)["size"] > 0
+      if (exists) {
         console.log('Skipping %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
         next()
       } else {
