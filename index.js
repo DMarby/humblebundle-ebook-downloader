@@ -9,7 +9,8 @@ var path = require('path')
 var https = require('https')
 var striptags = require('striptags')
 
-var CACHE_FILENAME = "/tmp/humblecache.json"
+const CACHE_FILENAME = "/tmp/humblecache.json"
+
 
 commander
   .version(pjson.version)
@@ -18,10 +19,16 @@ commander
   .option('-l, --download_limit <download_limit>', 'Parallel download limit', 5)
   .option('-f, --format <format>', 'What format to download the ebook in', 'EPUB')
   .option('-m, --title_matches <title_matches>', 'Title Matches', '')
-  .option('-r, --read_cache <read_cache>', 'Read Cache [true|false]', 'false')
+  .option('-r, --read_cache', 'Read Cache')
+  .option('-c, --checksum', 'Checksum Checks')
   .parse(process.argv)
 
-var read_cache = commander.read_cache === "true"
+var crypto = null
+if (commander.checksum) {
+  crypto = require('crypto')
+}
+
+var read_cache = commander.read_cache
 
 var order_list
 if (read_cache) {
@@ -52,6 +59,26 @@ var orders = []
 
 var i = 0;
 
+function calculate_md5(download_path) {
+  var stream = fs.openSync(download_path, 'r')
+
+  var hash = crypto.createHash('md5')
+  const chunkSize = 1024
+  var data = new Buffer(chunkSize, 'binary');
+
+  var sumlength = 0
+  var length
+  while ((length = fs.readSync(stream, data, 0, chunkSize, null)) > 0) {
+    sumlength += length
+    if (length == chunkSize) {
+      hash.update(data)
+    } else {
+      hash.update(data.slice(0, length));
+    }
+  }
+  var file_md5 = hash.digest('hex'); // 34f7a3113803f8ed3b8fd7ce5656ebec
+  return file_md5;
+}
 function fetch_books(order_list) {
   var precount = order_list.length
   orders = order_list.filter(function (item) {
@@ -80,6 +107,9 @@ function fetch_books(order_list) {
     })
 
     async.eachLimit(downloads, commander.download_limit, function (download, next) {
+      // const util = require('util')
+      // console.log(util.inspect(download, {showHidden: false, depth: null}))
+
       var human_name = striptags(download.human_name)
       var filename = (download.downloads[0].machine_name + '.' + commander.format.toLowerCase()).replace(/\.pdf \(hd\)/, '.pdf')
       var download_url = download.downloads[0].download_struct.filter(function (item) {
@@ -98,8 +128,25 @@ function fetch_books(order_list) {
         return next()
       }
 
-      var download_path = path.resolve(commander.download_folder, filename)
-      var exists = fs.existsSync(download_path) && fs.statSync(download_path)["size"] > 0
+      const download_md5 = download_url[0].md5
+
+      const download_path = path.resolve(commander.download_folder, filename)
+      var exists = fs.existsSync(download_path)
+      if (exists) {
+        var file_size = fs.statSync(download_path)["size"]
+        exists &= file_size > 0
+        if (file_size == 0) {
+          fs.unlinkSync(download_path)
+        }
+        if (exists && commander.checksum) {
+          var file_md5 = calculate_md5(download_path);
+          exists &= file_md5 === download_md5
+          if (!exists) {
+            console.log("%s - MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
+          }
+        }
+      }
+
       if (exists) {
         console.log('Skipping %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
         next()
@@ -116,6 +163,14 @@ function fetch_books(order_list) {
           response.pipe(file)
           file.on('finish', function () {
             file.close(function () {
+              var file_size = fs.statSync(download_path)["size"]
+              if (commander.checksum) {
+                var file_md5 = calculate_md5(download_path);
+                exists = file_md5 === download_md5
+                if (!exists) {
+                  console.log("%s - POST MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
+                }
+              }
               next()
             })
           })
@@ -126,6 +181,10 @@ function fetch_books(order_list) {
     })
   })
 }
+
+
+
+
 if (read_cache) {
   fetch_books(order_list)
 } else {
