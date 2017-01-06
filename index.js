@@ -36,7 +36,9 @@ if (read_cache) {
       order_list = JSON.parse(fs.readFileSync(CACHE_FILENAME))
     } catch (err) {
       console.log("Cache read error: " + err.message)
-      fs.unlinkSync(CACHE_FILENAME)
+      if (fs.existsSync(CACHE_FILENAME)) {
+        fs.unlinkSync(CACHE_FILENAME)
+      }
       read_cache = false
     }
 }
