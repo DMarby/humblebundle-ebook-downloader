@@ -24,6 +24,7 @@ commander
   .option('-c, --checksum', 'Checksum Checks')
   .option('-L, --leaf', 'Use bundle named leaf dirs')
   .option('-D, --disable download', 'Only refresh existing files')
+  .option('-A, --all', 'Do all bundles')
   .parse(process.argv)
 
 var crypto = null
@@ -62,7 +63,6 @@ var headers = {
 
 var orders = []
 
-var i = 0
 
 function calculate_md5(download_path) {
   var stream = fs.openSync(download_path, 'r')
@@ -84,6 +84,7 @@ function calculate_md5(download_path) {
   var file_md5 = hash.digest('hex'); // 34f7a3113803f8ed3b8fd7ce5656ebec
   return file_md5;
 }
+
 function fetch_books(order_list) {
   var precount = order_list.length
   orders = order_list.filter(function (item) {
@@ -105,6 +106,9 @@ function fetch_books(order_list) {
     if (!leaf_dir_exists) {
       fs.mkdirSync(leaf_download_dir)
     }
+
+
+    var i = 0;
 
     async.eachLimit(downloads, commander.download_limit, function (download, next) {
       // const util = require('util')
@@ -193,7 +197,11 @@ function fetch_books(order_list) {
     })
   }
 
-
+  if (commander.all) {
+    orders.forEach(function(order) {
+      work_on_bundle({"bundle": order.product.human_name})
+    })
+  } else {
     var options = []
     orders.forEach(function (order) {
       options.push(order.product.human_name)
@@ -207,7 +215,7 @@ function fetch_books(order_list) {
     }, function (answers) {
       work_on_bundle(answers);
     })
-
+  }
 }
 
 
