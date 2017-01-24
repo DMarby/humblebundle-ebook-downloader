@@ -21,6 +21,7 @@ commander
   .option('-m, --title_matches <title_matches>', 'Title Matches', '')
   .option('-r, --read_cache', 'Read Cache')
   .option('-c, --checksum', 'Checksum Checks')
+  .option('-D, --disable download', 'Only refresh existing files')
   .parse(process.argv)
 
 var crypto = null
@@ -59,7 +60,7 @@ var headers = {
 
 var orders = []
 
-var i = 0;
+
 
 function calculate_md5(download_path) {
   var stream = fs.openSync(download_path, 'r')
@@ -153,30 +154,32 @@ function fetch_books(order_list) {
         console.log('Skipping %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
         next()
       } else {
-        var url = download_url[0].url.web
-        console.log('Downloading %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
+        if (!commander.disable_download) {
+          var url = download_url[0].url.web
+          console.log('Downloading %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
 
-        var file = fs.createWriteStream(download_path)
-        if (download.downloads.length > 1) {
-          console.log('More than one download for %s', human_name)
-        }
+          var file = fs.createWriteStream(download_path)
+          if (download.downloads.length > 1) {
+            console.log('More than one download for %s', human_name)
+          }
 
-        https.get(url, function (response) {
-          response.pipe(file)
-          file.on('finish', function () {
-            file.close(function () {
-              var file_size = fs.statSync(download_path)["size"]
-              if (commander.checksum) {
-                var file_md5 = calculate_md5(download_path);
-                exists = file_md5 === download_md5
-                if (!exists) {
-                  console.log("%s - POST MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
+          https.get(url, function (response) {
+            response.pipe(file)
+            file.on('finish', function () {
+              file.close(function () {
+                var file_size = fs.statSync(download_path)["size"]
+                if (commander.checksum) {
+                  var file_md5 = calculate_md5(download_path);
+                  exists = file_md5 === download_md5
+                  if (!exists) {
+                    console.log("%s - POST MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
+                  }
                 }
-              }
-              next()
+                next()
+              })
             })
           })
-        })
+        }
       }
     }, function (error) {
       console.log('Done!')
@@ -190,6 +193,7 @@ function fetch_books(order_list) {
 if (read_cache) {
   fetch_books(order_list)
 } else {
+  // fetch bundle list
   unirest
     .get('https://www.humblebundle.com/api/v1/user/order?ajax=true')
     .headers(headers)
