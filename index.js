@@ -8,6 +8,7 @@ var pjson = require('./package.json')
 var path = require('path')
 var https = require('https')
 var striptags = require('striptags')
+var sanitize = require("sanitize-filename");
 
 const CACHE_FILENAME = "/tmp/humblecache.json"
 
@@ -21,6 +22,7 @@ commander
   .option('-m, --title_matches <title_matches>', 'Title Matches', '')
   .option('-r, --read_cache', 'Read Cache')
   .option('-c, --checksum', 'Checksum Checks')
+  .option('-L, --leaf', 'Use bundle named leaf dirs')
   .option('-D, --disable download', 'Only refresh existing files')
   .parse(process.argv)
 
@@ -60,7 +62,7 @@ var headers = {
 
 var orders = []
 
-
+var i = 0
 
 function calculate_md5(download_path) {
   var stream = fs.openSync(download_path, 'r')
@@ -91,30 +93,25 @@ function fetch_books(order_list) {
 
   console.log("%s of %s shown", postcount, precount)
 
-  var options = []
-
-  orders.forEach(function (order) {
-    options.push(order.product.human_name)
-  })
-
-  inquirer.prompt({
-    type: 'list',
-    name: 'bundle',
-    message: 'Select a bundle to download',
-    choices: options
-  }, function (answers) {
+  function work_on_bundle(answers) {
     var downloads = orders.filter(function (item) {
       return answers.bundle == item.product.human_name
     })[0].subproducts.filter(function (item) {
       return item.downloads.length
     })
 
+    const leaf_download_dir = path.resolve(commander.download_folder, sanitize(answers.bundle))
+    const leaf_dir_exists = fs.existsSync(leaf_download_dir)
+    if (!leaf_dir_exists) {
+      fs.mkdirSync(leaf_download_dir)
+    }
+
     async.eachLimit(downloads, commander.download_limit, function (download, next) {
       // const util = require('util')
       // console.log(util.inspect(download, {showHidden: false, depth: null}))
 
       var human_name = striptags(download.human_name)
-      var filename = (download.downloads[0].machine_name + '.' + commander.format.toLowerCase()).replace(/\.pdf \(hd\)/, '.pdf')
+      var filename = sanitize(download.downloads[0].machine_name + '.' + commander.format.toLowerCase()).replace(/\.pdf \(hd\)/, '.pdf')
       var download_url = download.downloads[0].download_struct.filter(function (item) {
         return item.name.toLowerCase() == commander.format.toLowerCase()
       })
@@ -131,10 +128,20 @@ function fetch_books(order_list) {
         return next()
       }
 
-      const download_md5 = download_url[0].md5
+      const root_download_path = path.resolve(commander.download_folder, filename)
+      var download_path = root_download_path
+      var exists = fs.existsSync(root_download_path)
+      if (commander.leaf) {
+        const leaf_download_path = path.resolve(commander.download_folder, sanitize(answers.bundle), filename)
+        if (exists) {
+          console.log("Moving %s to %s directory", filename, answers.bundle)
+          fs.renameSync(root_download_path, leaf_download_path)
+        }
+        download_path = leaf_download_path
+        exists = fs.existsSync(download_path)
+      }
 
-      const download_path = path.resolve(commander.download_folder, filename)
-      var exists = fs.existsSync(download_path)
+      const download_md5 = download_url[0].md5
       if (exists) {
         var file_size = fs.statSync(download_path)["size"]
         exists &= file_size > 0
@@ -184,7 +191,23 @@ function fetch_books(order_list) {
     }, function (error) {
       console.log('Done!')
     })
-  })
+  }
+
+
+    var options = []
+    orders.forEach(function (order) {
+      options.push(order.product.human_name)
+    })
+
+    inquirer.prompt({
+      type: 'list',
+      name: 'bundle',
+      message: 'Select a bundle to download',
+      choices: options
+    }, function (answers) {
+      work_on_bundle(answers);
+    })
+
 }
 
 
