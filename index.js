@@ -25,6 +25,7 @@ commander
   .option('-L, --leaf', 'Use bundle named leaf dirs')
   .option('-D, --disable download', 'Only refresh existing files')
   .option('-A, --all', 'Do all bundles')
+  .option('-H, --html', 'Write an index page')
   .parse(process.argv)
 
 var crypto = null
@@ -62,7 +63,6 @@ var headers = {
 }
 
 var orders = []
-
 
 function calculate_md5(download_path) {
   var stream = fs.openSync(download_path, 'r')
@@ -107,9 +107,36 @@ function fetch_books(order_list) {
       fs.mkdirSync(leaf_download_dir)
     }
 
-
+    if (commander.html) {
+      const bundleName = answers.bundle
+      var htmlpath = path.resolve(commander.download_folder, sanitize(answers.bundle) + ".html")
+      if (commander.leaf) {
+        htmlpath = path.resolve(commander.download_folder, sanitize(answers.bundle), "index.html")
+      }
+      if (!fs.existsSync(htmlpath)) {
+        var html = fs.createWriteStream(htmlpath)
+        html.write("<html><head></head><body>")
+        html.write("<h1>" + bundleName + "</h1>" + "<table>")
+        for (var d in downloads) {
+          html.write("<tr>")
+          html.write("<td><img src='" + downloads[d].icon + "'/></td>")
+          html.write("<td><a href='" + downloads[d].url + "'>" + striptags(downloads[d].human_name) + "</a></td>")
+          html.write("<td>" + striptags(downloads[d].payee.human_name) + "</a></td>")
+          for (var e in downloads[d].downloads[0].download_struct) {
+            html.write("<td>")
+            var filename = sanitize(downloads[d].downloads[0].machine_name + '.' + commander.format.toLowerCase()).replace(/\.pdf \(hd\)/, '.pdf')
+            html.write("<a href='" + filename + "'>")
+            html.write(downloads[d].downloads[0].download_struct[e].name)
+            html.write("</a>")
+            html.write("</td>")
+          }
+          html.write("</tr>")
+        }
+        html.write("</table>" + "</body></html>")
+        html.end()
+      }
+    }
     var i = 0;
-
     async.eachLimit(downloads, commander.download_limit, function (download, next) {
       // const util = require('util')
       // console.log(util.inspect(download, {showHidden: false, depth: null}))
