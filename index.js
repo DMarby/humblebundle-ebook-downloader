@@ -22,7 +22,7 @@ commander
   .option('-m, --title_matches <title_matches>', 'Title Matches', '')
   .option('-r, --read_cache', 'Read Cache')
   .option('-c, --checksum', 'Checksum Checks')
-  .option('-L, --leaf', 'Use bundle named leaf dirs')
+  .option('-b, --bundle', 'Use bundle named leaf dirs')
   .option('-D, --disable download', 'Only refresh existing files')
   .option('-A, --all', 'Do all bundles')
   .option('-H, --html', 'Write an index page')
@@ -101,22 +101,35 @@ function fetch_books(order_list) {
       return item.downloads.length
     })
 
-    const leaf_download_dir = path.resolve(commander.download_folder, sanitize(answers.bundle))
-    const leaf_dir_exists = fs.existsSync(leaf_download_dir)
-    if (!leaf_dir_exists) {
-      fs.mkdirSync(leaf_download_dir)
+    if (commander.bundle) {
+      const leaf_download_dir = path.resolve(commander.download_folder, sanitize(answers.bundle))
+      const leaf_dir_exists = fs.existsSync(leaf_download_dir)
+      if (!leaf_dir_exists) {
+        fs.mkdirSync(leaf_download_dir)
+      }
     }
 
     if (commander.html) {
       const bundleName = answers.bundle
       var htmlpath = path.resolve(commander.download_folder, sanitize(answers.bundle) + ".html")
-      if (commander.leaf) {
+      if (commander.bundle) {
         htmlpath = path.resolve(commander.download_folder, sanitize(answers.bundle), "index.html")
       }
       if (!fs.existsSync(htmlpath)) {
         var html = fs.createWriteStream(htmlpath)
-        html.write("<html><head></head><body>")
+        html.write("<html><head>")
+        html.write("<script type='text/javascript' src='https://www.google.com/books/jsapi.js'></script>")
+        html.write('<script type="text/javascript">')
+        html.write('google.books.load();')
+        html.write('function initialize() {')
+        html.write('  var viewer = new google.books.DefaultViewer(document.getElementById("viewerCanvas"));')
+        html.write('  viewer.load("ISBN:0738531367"); ')
+        html.write('}')
+        html.write('google.books.setOnLoadCallback(initialize);')
+        html.write('</script>')
+        html.write("</head><body>")
         html.write("<h1>" + bundleName + "</h1>" + "<table>")
+        html.write('<div id="viewerCanvas" style="width: 600px; height: 500px"></div>')
         for (var d in downloads) {
           html.write("<tr>")
           html.write("<td><img src='" + downloads[d].icon + "'/></td>")
@@ -162,7 +175,7 @@ function fetch_books(order_list) {
       const root_download_path = path.resolve(commander.download_folder, filename)
       var download_path = root_download_path
       var exists = fs.existsSync(root_download_path)
-      if (commander.leaf) {
+      if (commander.bundle) {
         const leaf_download_path = path.resolve(commander.download_folder, sanitize(answers.bundle), filename)
         if (exists) {
           console.log("Moving %s to %s directory", filename, answers.bundle)
@@ -201,22 +214,34 @@ function fetch_books(order_list) {
             console.log('More than one download for %s', human_name)
           }
 
-          https.get(url, function (response) {
-            response.pipe(file)
-            file.on('finish', function () {
-              file.close(function () {
-                var file_size = fs.statSync(download_path)["size"]
-                if (commander.checksum) {
-                  var file_md5 = calculate_md5(download_path);
-                  exists = file_md5 === download_md5
-                  if (!exists) {
-                    console.log("%s - POST MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
+          var req = null
+          try {
+            req = https.get(url, function (response) {
+              response.pipe(file)
+              file.on('finish', function () {
+                file.close(function () {
+                  var file_size = fs.statSync(download_path)["size"]
+                  if (commander.checksum) {
+                    var file_md5 = calculate_md5(download_path);
+                    exists = file_md5 === download_md5
+                    if (!exists) {
+                      console.log("%s - POST MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
+                    }
                   }
-                }
-                next()
+                  next()
+                })
               })
-            })
-          })
+            }).on('error', function (e) {
+              console.log("%s - http error", human_name)
+              console.error(e);
+              next()
+            });
+          } catch (e) {
+
+            console.log("%s - http error", human_name)
+            console.log(e)
+            next()
+          }
         }
       }
     }, function (error) {
