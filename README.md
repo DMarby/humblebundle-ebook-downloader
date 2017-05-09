@@ -5,10 +5,7 @@ Tool for easily downloading ebooks from Humblebundle
 ## Installation
 
 ```shell
-$ git clone https://github.com/DMarby/humblebundle-ebook-downloader.git
-$ cd humblebundle-ebook-downloader
-$ npm install
-$ node index
+$ npm install -g humblebundle-ebook-downloader
 ```
 
 ## Usage
@@ -47,7 +44,7 @@ Using `-b, --bundle` will move and download the book files into a directory name
 
 Using `-D/--disable-download` stops the actual downloading in the case of missing files, md5 mismatches, etc but will still copy files to the leaf directory if enabled.
 
-*Warning*: Using `-A/--all` without disabling downloads or having a  `--title_matches` filter will grab a lot!  Abusing this may end up getting API access limited. 
+*Warning*: Using `-A/--all` without disabling downloads or having a  `--title_matches` filter will grab a lot!  Abusing this may end up getting API access limited.
 
 The `-H, --html` creates a simple HTML file with book artwork, book names, a link the publisher provided, the publisher's name and supported formats.  The supported formats link to the local instance (and not the online reference).  In `--leaf` mode these files are placed in the bundle directories and named `index.html`, in non-leaf mode they will be named the bundle name with a `.html` suffix.
 
@@ -69,31 +66,8 @@ Get `mobi` files, place them in `~/humblebooks`, a session auth is not necessary
 
 Move all your mobi Sci-Fi bundles into their leaf directories without downloading them, even if they are damaged.
 
+## Contributors
+- [J. Longman](https://github.com/jlongman)
+
 ## License
-
-```
-This is free and unencumbered software released into the public domain.
-
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
-
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-For more information, please refer to <http://unlicense.org/>
-```
+See [LICENSE.md](LICENSE.md)
