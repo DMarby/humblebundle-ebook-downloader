@@ -388,17 +388,17 @@ function downloadBundles (next, bundles) {
 
         var normalizedFormat = normalizeFormat(download.name)
 
-        if (bundleFormats.indexOf(normalizedFormat) == -1 && ALLOWED_FORMATS.indexOf(normalizedFormat) !== -1) {
+        if (bundleFormats.indexOf(normalizedFormat) === -1 && ALLOWED_FORMATS.indexOf(normalizedFormat) !== -1) {
           bundleFormats.push(normalizedFormat)
         }
 
         return normalizedFormat === commander.format
       })
 
-      for (var download of filteredDownloadStructs) {
+      for (var filteredDownload of filteredDownloadStructs) {
         bundleDownloads.push({
           bundle: bundleName,
-          download: download,
+          download: filteredDownload,
           name: subproduct.human_name
         })
       }
