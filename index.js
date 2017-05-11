@@ -182,23 +182,27 @@ function fetchOrders (next, session) {
     var total = response.body.length
     var done = 0
 
+    var orderInfoLimiter = new Bottleneck(5, 100)
+
     async.concat(response.body, (item, next) => {
-      request.get({
-        url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', item.gamekey),
-        headers: getRequestHeaders(session),
-        json: true
-      }, (error, response) => {
-        if (error) {
-          return next(error)
-        }
+      orderInfoLimiter.submit((next) => {
+        request.get({
+          url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', item.gamekey),
+          headers: getRequestHeaders(session),
+          json: true
+        }, (error, response) => {
+          if (error) {
+            return next(error)
+          }
 
-        if (response.statusCode !== 200) {
-          return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
-        }
+          if (response.statusCode !== 200) {
+            return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
+          }
 
-        console.log('Fetched bundle information... (%s/%s)', colors.yellow(++done), colors.yellow(total))
-        next(null, response.body)
-      })
+          console.log('Fetched bundle information... (%s/%s)', colors.yellow(++done), colors.yellow(total))
+          next(null, response.body)
+        })
+      }, next)
     }, (error, orders) => {
       if (error) {
         return next(error)
