@@ -182,7 +182,7 @@ function fetchOrders (next, session) {
     var total = response.body.length
     var done = 0
 
-    async.concat(response.body, (item, next) => {
+    async.concatSeries(response.body, (item, next) => {
       request.get({
         url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', item.gamekey),
         headers: getRequestHeaders(session),
@@ -197,7 +197,7 @@ function fetchOrders (next, session) {
         }
 
         console.log('Fetched bundle information... (%s/%s)', colors.yellow(++done), colors.yellow(total))
-        next(null, response.body)
+        setTimeout(()=>next(null, response.body), 200);
       })
     }, (error, orders) => {
       if (error) {
