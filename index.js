@@ -1,314 +1,458 @@
-var commander = require('commander')
-var async = require('async')
-var inquirer = require('inquirer')
-var unirest = require('unirest')
-var readline = require('readline')
-var fs = require('fs')
-var pjson = require('./package.json')
-var path = require('path')
-var https = require('https')
-var striptags = require('striptags')
-var sanitize = require("sanitize-filename");
+#!/usr/bin/env node
 
-const CACHE_FILENAME = "/tmp/humblecache.json"
+const async = require('async')
+const commander = require('commander')
+const packageInfo = require('./package.json')
+const Nightmare = require('nightmare')
+const request = require('request')
+const Breeze = require('breeze')
+const Bottleneck = require('bottleneck')
+const colors = require('colors')
+const crypto = require('crypto')
+const inquirer = require('inquirer')
+const keypath = require('nasa-keypath')
+const mkdirp = require('mkdirp')
+const sanitizeFilename = require('sanitize-filename')
+const url = require('url')
+const util = require('util')
+const path = require('path')
+const fs = require('fs')
+const userAgent = util.format('Humblebundle-Ebook-Downloader/%s', packageInfo.version)
 
+const ALLOWED_FORMATS = ['epub', 'mobi', 'pdf', 'pdf_hd', 'cbz'].sort()
 
 commander
-  .version(pjson.version)
-  .option('-d, --download_folder <downloader_folder>', 'Download folder', 'download')
-  .option('-a, --auth_token <auth_token>', 'Authentication cookie (_simpleauth_sess)')
-  .option('-l, --download_limit <download_limit>', 'Parallel download limit', 5)
-  .option('-f, --format <format>', 'What format to download the ebook in', 'EPUB')
-  .option('-m, --title_matches <title_matches>', 'Title Matches', '')
-  .option('-r, --read_cache', 'Read Cache')
-  .option('-c, --checksum', 'Checksum Checks')
-  .option('-b, --bundle', 'Use bundle named leaf dirs')
-  .option('-D, --disable download', 'Only refresh existing files')
-  .option('-A, --all', 'Do all bundles')
-  .option('-H, --html', 'Write an index page')
+  .version(packageInfo.version)
+  .option('-d, --download-folder <downloader_folder>', 'Download folder, defaults to ./download', 'download')
+  .option('-l, --download-limit <download_limit>', 'Parallel download limit, defaults to 1', 1)
+  .option('-f, --format <format>', util.format('What format to download the ebook in (%s), defaults to epub', ALLOWED_FORMATS.join(', ')), 'epub')
+  .option('-a, --all', 'Download all bundles')
   .parse(process.argv)
 
-var crypto = null
-if (commander.checksum) {
-  crypto = require('crypto')
+if (ALLOWED_FORMATS.indexOf(commander.format) === -1) {
+  console.error(colors.red('Invalid format selected.'))
+  commander.help()
 }
 
-var read_cache = commander.read_cache
+const configPath = path.resolve(process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE, '.humblebundle_ebook_downloader.json')
+const flow = Breeze()
+const limiter = new Bottleneck(commander.downloadLimit) // Limit concurrent downloads
 
-var order_list
-if (read_cache) {
+console.log(colors.green('Starting...'))
+
+function loadConfig (next) {
+  fs.access(configPath, (error) => {
+    if (error) {
+      if (error.code === 'ENOENT') {
+        return next(null, {})
+      }
+
+      return next(error)
+    }
+
+    var config
+
     try {
-      order_list = JSON.parse(fs.readFileSync(CACHE_FILENAME))
-    } catch (err) {
-      console.log("Cache read error: " + err.message)
-      if (fs.existsSync(CACHE_FILENAME)) {
-        fs.unlinkSync(CACHE_FILENAME)
-      }
-      read_cache = false
+      config = require(configPath)
+    } catch (ignore) {
+      config = {}
     }
-}
 
-
-if (!read_cache && !commander.auth_token) {
-  return commander.help();
-}
-
-fs.mkdir(commander.download_folder, function(e) {})
-
-var headers = {
-  'Accept': 'application/json',
-  'Accept-Charset': 'utf-8',
-  'Keep-Alive': 'true',
-  'Cookie': '_simpleauth_sess=' + commander.auth_token + ';'
-}
-
-var orders = []
-
-function calculate_md5(download_path) {
-  var stream = fs.openSync(download_path, 'r')
-
-  var hash = crypto.createHash('md5')
-  const chunkSize = 1024
-  var data = new Buffer(chunkSize, 'binary');
-
-  var sumlength = 0
-  var length
-  while ((length = fs.readSync(stream, data, 0, chunkSize, null)) > 0) {
-    sumlength += length
-    if (length == chunkSize) {
-      hash.update(data)
-    } else {
-      hash.update(data.slice(0, length));
-    }
-  }
-  var file_md5 = hash.digest('hex'); // 34f7a3113803f8ed3b8fd7ce5656ebec
-  return file_md5;
-}
-
-function fetch_books(order_list) {
-  var precount = order_list.length
-  orders = order_list.filter(function (item) {
-    return item.product.human_name.toLowerCase().match(commander.title_matches.toLowerCase())
+    next(null, config)
   })
-  var postcount = orders.length
+}
 
-  console.log("%s of %s shown", postcount, precount)
-
-  function work_on_bundle(answers) {
-    var downloads = orders.filter(function (item) {
-      return answers.bundle == item.product.human_name
-    })[0].subproducts.filter(function (item) {
-      return item.downloads.length
-    })
-
-    if (commander.bundle) {
-      const leaf_download_dir = path.resolve(commander.download_folder, sanitize(answers.bundle))
-      const leaf_dir_exists = fs.existsSync(leaf_download_dir)
-      if (!leaf_dir_exists) {
-        fs.mkdirSync(leaf_download_dir)
-      }
-    }
-
-    if (commander.html) {
-      const bundleName = answers.bundle
-      var htmlpath = path.resolve(commander.download_folder, sanitize(answers.bundle) + ".html")
-      if (commander.bundle) {
-        htmlpath = path.resolve(commander.download_folder, sanitize(answers.bundle), "index.html")
-      }
-      if (!fs.existsSync(htmlpath)) {
-        var html = fs.createWriteStream(htmlpath)
-        html.write("<html><head>")
-        html.write("<script type='text/javascript' src='https://www.google.com/books/jsapi.js'></script>")
-        html.write('<script type="text/javascript">')
-        html.write('google.books.load();')
-        html.write('function initialize() {')
-        html.write('  var viewer = new google.books.DefaultViewer(document.getElementById("viewerCanvas"));')
-        html.write('  viewer.load("ISBN:0738531367"); ')
-        html.write('}')
-        html.write('google.books.setOnLoadCallback(initialize);')
-        html.write('</script>')
-        html.write("</head><body>")
-        html.write("<h1>" + bundleName + "</h1>" + "<table>")
-        html.write('<div id="viewerCanvas" style="width: 600px; height: 500px"></div>')
-        for (var d in downloads) {
-          html.write("<tr>")
-          html.write("<td><img src='" + downloads[d].icon + "'/></td>")
-          html.write("<td><a href='" + downloads[d].url + "'>" + striptags(downloads[d].human_name) + "</a></td>")
-          html.write("<td>" + striptags(downloads[d].payee.human_name) + "</a></td>")
-          for (var e in downloads[d].downloads[0].download_struct) {
-            html.write("<td>")
-            var filename = sanitize(downloads[d].downloads[0].machine_name + '.' + commander.format.toLowerCase()).replace(/\.pdf \(hd\)/, '.pdf')
-            html.write("<a href='" + filename + "'>")
-            html.write(downloads[d].downloads[0].download_struct[e].name)
-            html.write("</a>")
-            html.write("</td>")
-          }
-          html.write("</tr>")
-        }
-        html.write("</table>" + "</body></html>")
-        html.end()
-      }
-    }
-    var i = 0;
-    async.eachLimit(downloads, commander.download_limit, function (download, next) {
-      // const util = require('util')
-      // console.log(util.inspect(download, {showHidden: false, depth: null}))
-
-      var human_name = striptags(download.human_name)
-      var filename = sanitize(download.downloads[0].machine_name + '.' + commander.format.toLowerCase()).replace(/\.pdf \(hd\)/, '.pdf')
-      var download_url = download.downloads[0].download_struct.filter(function (item) {
-        return item.name.toLowerCase() == commander.format.toLowerCase()
-      })
-
-      if (download_url.length < 1) {
-        var types = []
-        download.downloads[0].download_struct.forEach(function (item) {
-          if (types.indexOf(item.name.toLowerCase()) === -1) {
-            types.push(item.name.toLowerCase())
-          }
-        })
-
-        console.log('No download of this format found for %s (%s of %s) Formats available: %s', human_name, (i++ + 1), downloads.length, types.join(', '))
-        return next()
-      }
-
-      const root_download_path = path.resolve(commander.download_folder, filename)
-      var download_path = root_download_path
-      var exists = fs.existsSync(root_download_path)
-      if (commander.bundle) {
-        const leaf_download_path = path.resolve(commander.download_folder, sanitize(answers.bundle), filename)
-        if (exists) {
-          console.log("Moving %s to %s directory", filename, answers.bundle)
-          fs.renameSync(root_download_path, leaf_download_path)
-        }
-        download_path = leaf_download_path
-        exists = fs.existsSync(download_path)
-      }
-
-      const download_md5 = download_url[0].md5
-      if (exists) {
-        var file_size = fs.statSync(download_path)["size"]
-        exists &= file_size > 0
-        if (file_size == 0) {
-          fs.unlinkSync(download_path)
-        }
-        if (exists && commander.checksum) {
-          var file_md5 = calculate_md5(download_path);
-          exists &= file_md5 === download_md5
-          if (!exists) {
-            console.log("%s - MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
-          }
-        }
-      }
-
-      if (exists) {
-        console.log('Skipping %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
-        next()
-      } else {
-        if (!commander.disable_download) {
-          var url = download_url[0].url.web
-          console.log('Downloading %s (%s of %s) - %s', human_name, (i++ + 1), downloads.length, filename)
-
-          var file = fs.createWriteStream(download_path)
-          if (download.downloads.length > 1) {
-            console.log('More than one download for %s', human_name)
-          }
-
-          var req = null
-          try {
-            req = https.get(url, function (response) {
-              response.pipe(file)
-              file.on('finish', function () {
-                file.close(function () {
-                  var file_size = fs.statSync(download_path)["size"]
-                  if (commander.checksum) {
-                    var file_md5 = calculate_md5(download_path);
-                    exists = file_md5 === download_md5
-                    if (!exists) {
-                      console.log("%s - POST MD5 MISMATCH %s - %s", human_name, file_md5, download_md5)
-                    }
-                  }
-                  next()
-                })
-              })
-            }).on('error', function (e) {
-              console.log("%s - http error", human_name)
-              console.error(e);
-              next()
-            });
-          } catch (e) {
-
-            console.log("%s - http error", human_name)
-            console.log(e)
-            next()
-          }
-        }
-      }
-    }, function (error) {
-      console.log('Done!')
-    })
-  }
-
-  if (commander.all) {
-    orders.forEach(function(order) {
-      work_on_bundle({"bundle": order.product.human_name})
-    })
-  } else {
-    var options = []
-    orders.forEach(function (order) {
-      options.push(order.product.human_name)
-    })
-
-    inquirer.prompt({
-      type: 'list',
-      name: 'bundle',
-      message: 'Select a bundle to download',
-      choices: options
-    }, function (answers) {
-      work_on_bundle(answers);
-    })
+function getRequestHeaders (session) {
+  return {
+    'Accept': 'application/json',
+    'Accept-Charset': 'utf-8',
+    'User-Agent': userAgent,
+    'Cookie': '_simpleauth_sess=' + session + ';'
   }
 }
 
+function validateSession (next, config) {
+  console.log('Validating session...')
 
+  if (!config.session || !config.expirationDate) {
+    return next()
+  }
 
+  if (config.expirationDate < new Date()) {
+    return next()
+  }
 
-if (read_cache) {
-  fetch_books(order_list)
-} else {
-  // fetch bundle list
-  unirest
-    .get('https://www.humblebundle.com/api/v1/user/order?ajax=true')
-    .headers(headers)
-    .end(function (response) {
-      if (response.code == 200) {
-        async.concat(response.body, function (item, next) {
-          unirest
-            .get('https://www.humblebundle.com/api/v1/order/' + item.gamekey +'?ajax=true')
-        .headers(headers)
-        .end(function (response) {
-          next(null, response.body)
+  request.get({
+    url: 'https://www.humblebundle.com/api/v1/user/order?ajax=true',
+    headers: getRequestHeaders(config.session),
+    json: true
+  }, (error, response) => {
+    if (error) {
+      return next(error)
+    }
+
+    if (response.statusCode === 200) {
+      return next(null, config.session)
+    }
+
+    if (response.statusCode === 401) {
+      return next(null)
+    }
+
+    return next(new Error(util.format('Could not validate session, unknown error, status code:', response.statusCode)))
+  })
+}
+
+function saveConfig (config, callback) {
+  fs.writeFile(configPath, JSON.stringify(config, null, 4), 'utf8', callback)
+}
+
+function authenticate (next) {
+  console.log('Authenticating...')
+
+  var nightmare = Nightmare({
+    show: true,
+    width: 800,
+    height: 600
+  })
+
+  nightmare.useragent(userAgent)
+
+  const redirectUrl = url.parse('https://www.humblebundle.com/home')
+
+  nightmare.on('did-get-redirect-request', (event, sourceUrl, targetUrl, isMainFrame, responseCode, requestMethod) => {
+    if (requestMethod !== 'GET') {
+      return
+    }
+
+    var parsedUrl = url.parse(targetUrl, true)
+
+    if (parsedUrl.hostname !== redirectUrl.hostname || parsedUrl.pathname !== redirectUrl.pathname) {
+      return
+    }
+
+    nightmare
+      .cookies.get({
+        secure: true,
+        name: '_simpleauth_sess'
+      })
+      .then((sessionCookie) => {
+        if (!sessionCookie) {
+          return next(new Error('Could not get session cookie'))
+        }
+
+        nightmare._endNow()
+
+        saveConfig({
+          session: sessionCookie.value,
+          expirationDate: new Date(sessionCookie.expirationDate * 1000)
+        }, (error) => {
+          if (error) {
+            return next(error)
+          }
+
+          next(null, sessionCookie.value)
         })
-      }, function (error, order_list) {
+      })
+      .catch((error) => next(error))
+  })
+
+  nightmare
+    .goto('https://www.humblebundle.com/login?goto=%2Fhome')
+    .then()
+    .catch((error) => next(error))
+}
+
+function fetchOrders (next, session) {
+  console.log('Fetching bundles...')
+
+  request.get({
+    url: 'https://www.humblebundle.com/api/v1/user/order?ajax=true',
+    headers: getRequestHeaders(session),
+    json: true
+  }, (error, response) => {
+    if (error) {
+      return next(error)
+    }
+
+    if (response.statusCode !== 200) {
+      return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
+    }
+
+    var total = response.body.length
+    var done = 0
+
+    async.concat(response.body, (item, next) => {
+      request.get({
+        url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', item.gamekey),
+        headers: getRequestHeaders(session),
+        json: true
+      }, (error, response) => {
         if (error) {
-          return console.log('Error using the humblebundle API, invalid session cookie?')
+          return next(error)
         }
 
-        if (!read_cache) {
-          fs.writeFile(CACHE_FILENAME, JSON.stringify(order_list), function(err) {
-            if(err) {
-              return console.log(err);
-            }
-            console.log("Cache was saved to \"%s\"!", CACHE_FILENAME);
-          });
+        if (response.statusCode !== 200) {
+          return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
         }
 
-        /* start repeat section */
-        fetch_books(order_list)
-        /* end repeat section */
+        console.log('Fetched bundle information... (%s/%s)', colors.yellow(++done), colors.yellow(total))
+        next(null, response.body)
       })
-    } else {
-      console.log('Error using the humblebundle API, invalid session cookie?')
-    }
+    }, (error, orders) => {
+      if (error) {
+        return next(error)
+      }
+
+      var filteredOrders = orders.filter((order) => {
+        return flatten(keypath.get(order, 'subproducts.[].downloads.[].platform')).indexOf('ebook') !== -1
+      })
+
+      next(null, filteredOrders, session)
+    })
   })
 }
+
+function getWindowHeight () {
+  var windowSize = process.stdout.getWindowSize()
+  return windowSize[windowSize.length - 1]
+}
+
+function displayOrders (next, orders) {
+  var options = []
+
+  for (var order of orders) {
+    options.push(order.product.human_name)
+  }
+
+  options.sort((a, b) => {
+    return a.localeCompare(b)
+  })
+
+  process.stdout.write('\x1Bc') // Clear console
+
+  inquirer.prompt({
+    type: 'checkbox',
+    name: 'bundle',
+    message: 'Select bundles to download',
+    choices: options,
+    pageSize: getWindowHeight() - 2
+  }).then((answers) => {
+    next(null, orders.filter((item) => {
+      return answers.bundle.indexOf(item.product.human_name) !== -1
+    }))
+  })
+}
+
+function sortBundles (next, bundles) {
+  next(null, bundles.sort((a, b) => {
+    return a.product.human_name.localeCompare(b.product.human_name)
+  }))
+}
+
+function flatten (list) {
+  return list.reduce((a, b) => a.concat(Array.isArray(b) ? flatten(b) : b), [])
+}
+
+function ensureFolderCreated (folder, callback) {
+  fs.access(folder, (error) => {
+    if (error && error.code !== 'ENOENT') {
+      return callback(error)
+    }
+
+    mkdirp(folder, (error) => {
+      if (error) {
+        return callback(error)
+      }
+
+      callback()
+    })
+  })
+}
+
+function normalizeFormat (format) {
+  switch (format.toLowerCase()) {
+    case '.cbz':
+      return 'cbz'
+    case 'pdf (hq)':
+    case 'pdf (hd)':
+      return 'pdf_hd'
+    case 'download':
+      return 'pdf'
+    default:
+      return format.toLowerCase()
+  }
+}
+
+function getExtension (format) {
+  switch (format.toLowerCase()) {
+    case 'pdf_hd':
+      return '.pdf'
+    default:
+      return util.format('.%s', format)
+  }
+}
+
+function checkSignatureMatch (filePath, download, callback) {
+  fs.access(filePath, (error) => {
+    if (error) {
+      if (error.code === 'ENOENT') {
+        return callback()
+      }
+
+      return callback(error)
+    }
+
+    var hashType = download.sha1 ? 'sha1' : 'md5'
+    var hashToVerify = download[hashType]
+
+    var hash = crypto.createHash(hashType)
+    hash.setEncoding('hex')
+
+    var stream = fs.createReadStream(filePath)
+
+    stream.on('error', (error) => {
+      return callback(error)
+    })
+
+    stream.on('end', () => {
+      hash.end()
+
+      return callback(null, hash.read() === hashToVerify)
+    })
+
+    stream.pipe(hash)
+  })
+}
+
+function downloadBook (bundle, name, download, callback) {
+  var downloadPath = path.resolve(commander.downloadFolder, sanitizeFilename(bundle))
+
+  ensureFolderCreated(downloadPath, (error) => {
+    if (error) {
+      return callback(error)
+    }
+
+    var fileName = util.format('%s%s', name, getExtension(normalizeFormat(download.name)))
+    var filePath = path.resolve(downloadPath, sanitizeFilename(fileName))
+
+    checkSignatureMatch(filePath, download, (error, matches) => {
+      if (error) {
+        return callback(error)
+      }
+
+      if (matches) {
+        return callback(null, true)
+      }
+
+      var file = fs.createWriteStream(filePath)
+
+      file.on('finish', () => {
+        file.close(() => {
+          callback()
+        })
+      })
+
+      request.get({
+        url: download.url.web
+      }).on('error', (error) => {
+        callback(error)
+      }).pipe(file)
+    })
+  })
+}
+
+function downloadBundles (next, bundles) {
+  if (!bundles.length) {
+    console.log(colors.green('No bundles selected, exiting'))
+    return next()
+  }
+
+  var downloads = []
+
+  for (var bundle of bundles) {
+    var bundleName = bundle.product.human_name
+    var bundleDownloads = []
+    var bundleFormats = []
+
+    for (var subproduct of bundle.subproducts) {
+      var filteredDownloads = subproduct.downloads.filter((download) => {
+        return download.platform === 'ebook'
+      })
+
+      var downloadStructs = flatten(keypath.get(filteredDownloads, '[].download_struct'))
+      var filteredDownloadStructs = downloadStructs.filter((download) => {
+        if (!download.name) {
+          return false
+        }
+
+        var normalizedFormat = normalizeFormat(download.name)
+
+        if (bundleFormats.indexOf(normalizedFormat) == -1 && ALLOWED_FORMATS.indexOf(normalizedFormat) !== -1) {
+          bundleFormats.push(normalizedFormat)
+        }
+
+        return normalizedFormat === commander.format
+      })
+
+      for (var download of filteredDownloadStructs) {
+        bundleDownloads.push({
+          bundle: bundleName,
+          download: download,
+          name: subproduct.human_name
+        })
+      }
+    }
+
+    if (!bundleDownloads.length) {
+      console.log(colors.red('No downloads found matching the right format (%s) for bundle (%s), available formats: (%s)'), commander.format, bundleName, bundleFormats.sort().join(', '))
+      continue
+    }
+
+    for (var download of bundleDownloads) {
+      downloads.push(download)
+    }
+  }
+
+  if (!downloads.length) {
+    console.log(colors.red('No downloads found matching the right format (%s), exiting'), commander.format)
+  }
+
+  async.each(downloads, (download, next) => {
+    limiter.submit((next) => {
+      console.log('Downloading %s - %s (%s)... (%s/%s)', download.bundle, download.name, download.download.human_size, colors.yellow(downloads.indexOf(download) + 1), colors.yellow(downloads.length))
+      downloadBook(download.bundle, download.name, download.download, (error, skipped) => {
+        if (error) {
+          return next(error)
+        }
+
+        if (skipped) {
+          console.log('Skipped downloading of %s - %s (%s) - already exists... (%s/%s)', download.bundle, download.name, download.download.human_size, colors.yellow(downloads.indexOf(download) + 1), colors.yellow(downloads.length))
+        }
+
+        next()
+      })
+    }, next)
+  }, (error) => {
+    if (error) {
+      return next(error)
+    }
+
+    console.log(colors.green('Done'))
+    next()
+  })
+}
+
+flow.then(loadConfig)
+flow.then(validateSession)
+flow.when((session) => !session, authenticate)
+flow.then(fetchOrders)
+flow.when(!commander.all, displayOrders)
+flow.when(commander.all, sortBundles)
+flow.then(downloadBundles)
+
+flow.catch((error) => {
+  console.error(colors.red('An error occured, exiting.'))
+  console.error(error)
+  process.exit(1)
+})

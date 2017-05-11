@@ -1,10 +1,13 @@
 {
   "name": "humblebundle-ebook-downloader",
-  "version": "0.0.1",
+  "version": "1.0.0",
+  "license": "Unlicense",
   "main": "index.js",
+  "bin": {
+    "humblebundle-ebook-downloader": "index.js"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "test": "standard"
   },
   "repository": {
     "type": "git",
@@ -12,12 +15,19 @@
   },
   "author": "David Marby <david@dmarby.se> http://dmarby.se",
   "dependencies": {
-    "async": "^0.9.0",
+    "async": "^2.4.0",
+    "bottleneck": "^1.15.1",
+    "breeze": "^1.2.2",
+    "colors": "^1.1.2",
     "commander": "^2.7.1",
-    "inquirer": "^0.8.0",
-    "striptags": "^2.0.1",
-    "unirest": "^0.3.8",
-    "cheerio": "^0.22.0",
+    "inquirer": "^3.0.6",
+    "mkdirp": "^0.5.1",
+    "nasa-keypath": "0.0.1",
+    "nightmare": "^2.10.0",
+    "request": "^2.81.0",
     "sanitize-filename": "^1.6.1"
+  },
+  "devDependencies": {
+    "standard": "^10.0.2"
   }
 }
