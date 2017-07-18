@@ -1,11 +1,13 @@
 # humblebundle-ebook-downloader
 
-Tool for easily downloading ebooks from Humblebundle
+Tool for easily downloading ebooks from Humblebundle.
+
+Note this is a fork of https://github.com/DMarby/humblebundle-ebook-downloader, slightly different functionality.
 
 ## Installation
 
 ```shell
-$ git clone https://github.com/DMarby/humblebundle-ebook-downloader.git
+$ git clone https://github.com/jlongman/humblebundle-ebook-downloader.git
 $ cd humblebundle-ebook-downloader
 $ npm install
 $ node index
