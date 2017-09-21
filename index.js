@@ -19,7 +19,8 @@ const path = require('path')
 const fs = require('fs')
 const userAgent = util.format('Humblebundle-Ebook-Downloader/%s', packageInfo.version)
 
-const ALLOWED_FORMATS = ['epub', 'mobi', 'pdf', 'pdf_hd', 'cbz'].sort()
+const SUPPORTED_FORMATS = ['epub', 'mobi', 'pdf', 'pdf_hd', 'cbz']
+const ALLOWED_FORMATS = SUPPORTED_FORMATS.concat(['all']).sort()
 
 commander
   .version(packageInfo.version)
@@ -392,11 +393,11 @@ function downloadBundles (next, bundles) {
 
         var normalizedFormat = normalizeFormat(download.name)
 
-        if (bundleFormats.indexOf(normalizedFormat) === -1 && ALLOWED_FORMATS.indexOf(normalizedFormat) !== -1) {
+        if (bundleFormats.indexOf(normalizedFormat) === -1 && SUPPORTED_FORMATS.indexOf(normalizedFormat) !== -1) {
           bundleFormats.push(normalizedFormat)
         }
 
-        return normalizedFormat === commander.format
+        return commander.format == 'all' || normalizedFormat === commander.format
       })
 
       for (var filteredDownload of filteredDownloadStructs) {
