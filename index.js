@@ -425,14 +425,14 @@ function downloadBundles (next, bundles) {
 
   async.each(downloads, (download, next) => {
     limiter.submit((next) => {
-      console.log('Downloading %s - %s (%s)... (%s/%s)', download.bundle, download.name, download.download.human_size, colors.yellow(downloads.indexOf(download) + 1), colors.yellow(downloads.length))
+      console.log('Downloading %s - %s (%s) (%s)... (%s/%s)', download.bundle, download.name, download.download.name, download.download.human_size, colors.yellow(downloads.indexOf(download) + 1), colors.yellow(downloads.length))
       downloadBook(download.bundle, download.name, download.download, (error, skipped) => {
         if (error) {
           return next(error)
         }
 
         if (skipped) {
-          console.log('Skipped downloading of %s - %s (%s) - already exists... (%s/%s)', download.bundle, download.name, download.download.human_size, colors.yellow(downloads.indexOf(download) + 1), colors.yellow(downloads.length))
+          console.log('Skipped downloading of %s - %s (%s) (%s) - already exists... (%s/%s)', download.bundle, download.name, download.download.name, download.download.human_size, colors.yellow(downloads.indexOf(download) + 1), colors.yellow(downloads.length))
         }
 
         next()
