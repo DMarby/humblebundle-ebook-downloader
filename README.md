@@ -27,6 +27,7 @@ $ humblebundle-ebook-downloader --help
 
 ## Contributors
 - [J. Longman](https://github.com/jlongman)
+- [Johannes Löthberg](https://github.com/kyrias)
 
 ## License
 See [LICENSE.md](LICENSE.md)
