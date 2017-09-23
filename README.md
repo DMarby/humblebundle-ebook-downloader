@@ -21,7 +21,7 @@ $ humblebundle-ebook-downloader --help
     -V, --version                              output the version number
     -d, --download-folder <downloader_folder>  Download folder, defaults to ./download
     -l, --download-limit <download_limit>      Parallel download limit, defaults to 1
-    -f, --format <format>                      What format to download the ebook in (cbz, epub, mobi, pdf, pdf_hd), defaults to epub
+    -f, --format <format>                      What format to download the ebook in (all, cbz, epub, mobi, pdf, pdf_hd), defaults to epub
     -a, --all                                  Download all bundles
 ```
 
