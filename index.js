@@ -338,7 +338,7 @@ function downloadBook (bundle, name, download, callback) {
       return callback(error)
     }
 
-    var fileName = util.format('%s%s', name, getExtension(normalizeFormat(download.name)))
+    var fileName = util.format('%s%s', name.trim(), getExtension(normalizeFormat(download.name)))
     var filePath = path.resolve(downloadPath, sanitizeFilename(fileName))
 
     checkSignatureMatch(filePath, download, (error, matches) => {
