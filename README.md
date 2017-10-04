@@ -22,6 +22,7 @@ $ humblebundle-ebook-downloader --help
     -d, --download-folder <downloader_folder>  Download folder, defaults to ./download
     -l, --download-limit <download_limit>      Parallel download limit, defaults to 1
     -f, --format <format>                      What format to download the ebook in (all, cbz, epub, mobi, pdf, pdf_hd), defaults to epub
+    --auth-token <auth-token>                  Optional: If you want to run headless, you can specify your authentication cookie from your browser (_simpleauth_sess)
     -a, --all                                  Download all bundles
 ```
 
