@@ -27,6 +27,7 @@ commander
   .option('-d, --download-folder <downloader_folder>', 'Download folder, defaults to ./download', 'download')
   .option('-l, --download-limit <download_limit>', 'Parallel download limit, defaults to 1', 1)
   .option('-f, --format <format>', util.format('What format to download the ebook in (%s), defaults to epub', ALLOWED_FORMATS.join(', ')), 'epub')
+  .option('--auth-token <auth-token>', 'Optional: If you want to run headless, you can specify your authentication cookie from your browser (_simpleauth_sess)')
   .option('-a, --all', 'Download all bundles')
   .parse(process.argv)
 
@@ -75,17 +76,23 @@ function getRequestHeaders (session) {
 function validateSession (next, config) {
   console.log('Validating session...')
 
-  if (!config.session || !config.expirationDate) {
-    return next()
-  }
+  var session = config.session
 
-  if (config.expirationDate < new Date()) {
-    return next()
+  if (!commander.authToken) {
+    if (!config.session || !config.expirationDate) {
+      return next()
+    }
+
+    if (config.expirationDate < new Date()) {
+      return next()
+    }
+  } else {
+    session = util.format('"%s"', commander.authToken.replace(/^"|"$/g, ""))
   }
 
   request.get({
     url: 'https://www.humblebundle.com/api/v1/user/order?ajax=true',
-    headers: getRequestHeaders(config.session),
+    headers: getRequestHeaders(session),
     json: true
   }, (error, response) => {
     if (error) {
@@ -93,10 +100,10 @@ function validateSession (next, config) {
     }
 
     if (response.statusCode === 200) {
-      return next(null, config.session)
+      return next(null, session)
     }
 
-    if (response.statusCode === 401) {
+    if (response.statusCode === 401 && !commander.authToken) {
       return next(null)
     }
 
