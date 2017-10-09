@@ -299,7 +299,7 @@ function normalizeFormat (format) {
 function getExtension (format) {
   switch (format.toLowerCase()) {
     case 'pdf_hd':
-      return '.pdf'
+      return ' (hd).pdf'
     default:
       return util.format('.%s', format)
   }
