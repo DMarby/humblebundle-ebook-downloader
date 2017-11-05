@@ -394,7 +394,7 @@ function downloadBundles (next, bundles) {
 
       var downloadStructs = flatten(keypath.get(filteredDownloads, '[].download_struct'))
       var filteredDownloadStructs = downloadStructs.filter((download) => {
-        if (!download.name) {
+        if (!download.name || !download.url) {
           return false
         }
 
