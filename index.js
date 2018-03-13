@@ -128,13 +128,9 @@ function authenticate (next) {
 
   nightmare.useragent(userAgent)
 
-  const redirectUrl = url.parse('https://www.humblebundle.com/home')
+  const redirectUrl = url.parse('https://www.humblebundle.com/home/library')
 
-  nightmare.on('did-get-redirect-request', (event, sourceUrl, targetUrl, isMainFrame, responseCode, requestMethod) => {
-    if (requestMethod !== 'GET') {
-      return
-    }
-
+  nightmare.on('will-navigate', (event, targetUrl) => {
     var parsedUrl = url.parse(targetUrl, true)
 
     if (parsedUrl.hostname !== redirectUrl.hostname || parsedUrl.pathname !== redirectUrl.pathname) {
@@ -168,7 +164,7 @@ function authenticate (next) {
   })
 
   nightmare
-    .goto('https://www.humblebundle.com/login?goto=%2Fhome')
+    .goto('https://www.humblebundle.com/login?goto=%2Fhome%2Flibrary')
     .then()
     .catch((error) => next(error))
 }
