@@ -127,6 +127,7 @@ function authenticate (next) {
   nightmare.useragent(userAgent)
 
   const redirectUrl = url.parse('https://www.humblebundle.com/home')
+  const redirectUrl2 = url.parse('https://www.humblebundle.com/user/humbleguard')
 
   nightmare.on('did-get-redirect-request', (event, sourceUrl, targetUrl, isMainFrame, responseCode, requestMethod) => {
     if (requestMethod !== 'GET') {
@@ -135,7 +136,8 @@ function authenticate (next) {
 
     var parsedUrl = url.parse(targetUrl, true)
 
-    if (parsedUrl.hostname !== redirectUrl.hostname || parsedUrl.pathname !== redirectUrl.pathname) {
+    if ((parsedUrl.hostname !== redirectUrl.hostname || parsedUrl.pathname !== redirectUrl.pathname) &&
+        (parsedUrl.hostname !== redirectUrl2.hostname || parsedUrl.pathname !== redirectUrl2.pathname)) {
       return
     }
 
