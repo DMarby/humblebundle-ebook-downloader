@@ -38,7 +38,9 @@ if (ALLOWED_FORMATS.indexOf(commander.format) === -1) {
 
 const configPath = path.resolve(process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE, '.humblebundle_ebook_downloader.json')
 const flow = Breeze()
-const limiter = new Bottleneck(commander.downloadLimit) // Limit concurrent downloads
+const limiter =  new Bottleneck({
+  maxConcurrent: commander.downloadLimit,
+}) // Limit concurrent downloads
 
 console.log(colors.green('Starting...'))
 
@@ -190,7 +192,10 @@ function fetchOrders (next, session) {
     var total = response.body.length
     var done = 0
 
-    var orderInfoLimiter = new Bottleneck(5, 100)
+    var orderInfoLimiter = new Bottleneck({
+      maxConcurrent: 5,
+      minTime: 500
+    })
 
     async.concat(response.body, (item, next) => {
       orderInfoLimiter.submit((next) => {
