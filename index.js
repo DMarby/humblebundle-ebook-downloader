@@ -24,9 +24,9 @@ const ALLOWED_FORMATS = SUPPORTED_FORMATS.concat(['all']).sort()
 
 commander
   .version(packageInfo.version)
-  .option('-d, --download-folder <downloader_folder>', 'Download folder, defaults to ./download', 'download')
-  .option('-l, --download-limit <download_limit>', 'Parallel download limit, defaults to 1', 1)
-  .option('-f, --format <format>', util.format('What format to download the ebook in (%s), defaults to epub', ALLOWED_FORMATS.join(', ')), 'epub')
+  .option('-d, --download-folder <downloader_folder>', 'Download folder', 'download')
+  .option('-l, --download-limit <download_limit>', 'Parallel download limit', 1)
+  .option('-f, --format <format>', util.format('What format to download the ebook in (%s)', ALLOWED_FORMATS.join(', ')), 'epub')
   .option('--auth-token <auth-token>', 'Optional: If you want to run headless, you can specify your authentication cookie from your browser (_simpleauth_sess)')
   .option('-a, --all', 'Download all bundles')
   .parse(process.argv)
