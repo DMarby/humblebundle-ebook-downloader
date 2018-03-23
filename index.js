@@ -39,8 +39,8 @@ if (ALLOWED_FORMATS.indexOf(commander.format) === -1) {
 
 const configPath = path.resolve(process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE, '.humblebundle_ebook_downloader.json')
 const flow = Breeze()
-const limiter =  new Bottleneck({
-  maxConcurrent: commander.downloadLimit,
+const limiter = new Bottleneck({
+  maxConcurrent: commander.downloadLimit
 }) // Limit concurrent downloads
 
 console.log(colors.green('Starting...'))
@@ -90,7 +90,7 @@ function validateSession (next, config) {
       return next()
     }
   } else {
-    session = util.format('"%s"', commander.authToken.replace(/^"|"$/g, ""))
+    session = util.format('"%s"', commander.authToken.replace(/^"|"$/g, ''))
   }
 
   request.get({
@@ -429,7 +429,7 @@ function downloadBundles (next, bundles) {
           bundleFormats.push(normalizedFormat)
         }
 
-        return commander.format == 'all' || normalizedFormat === commander.format
+        return commander.format === 'all' || normalizedFormat === commander.format
       })
 
       for (var filteredDownload of filteredDownloadStructs) {
