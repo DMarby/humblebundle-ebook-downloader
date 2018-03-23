@@ -135,14 +135,21 @@ function authenticate (next) {
 
   nightmare.useragent(userAgent)
 
-  const redirectUrl = url.parse('https://www.humblebundle.com/home/library')
+  var handledRedirect = false
 
-  nightmare.on('will-navigate', (event, targetUrl) => {
-    var parsedUrl = url.parse(targetUrl, true)
-
-    if (parsedUrl.hostname !== redirectUrl.hostname || parsedUrl.pathname !== redirectUrl.pathname) {
+  function handleRedirect (targetUrl) {
+    if (handledRedirect) {
       return
     }
+
+    var parsedUrl = url.parse(targetUrl, true)
+
+    if (parsedUrl.hostname !== 'www.humblebundle.com' || parsedUrl.path.indexOf('/home/library') === -1) {
+      return
+    }
+
+    debug('Handled redirect for url %s', targetUrl)
+    handledRedirect = true
 
     nightmare
       .cookies.get({
@@ -168,6 +175,16 @@ function authenticate (next) {
         })
       })
       .catch((error) => next(error))
+  }
+
+  nightmare.on('did-get-redirect-request', (event, sourceUrl, targetUrl, isMainFrame, responseCode, requestMethod) => {
+    debug('did-get-redirect-request: %s %s', sourceUrl, targetUrl)
+    handleRedirect(targetUrl)
+  })
+
+  nightmare.on('will-navigate', (event, targetUrl) => {
+    debug('will-navigate: %s', targetUrl)
+    handleRedirect(targetUrl)
   })
 
   nightmare
