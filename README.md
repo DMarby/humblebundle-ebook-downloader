@@ -23,6 +23,7 @@ $ humblebundle-ebook-downloader --help
     -f, --format <format>                      What format to download the ebook in (all, cbz, epub, mobi, pdf, pdf_hd) (default: epub)
     --auth-token <auth-token>                  Optional: If you want to run headless, you can specify your authentication cookie from your browser (_simpleauth_sess)
     -a, --all                                  Download all bundles
+    --debug                                    Enable debug logging
     -h, --help                                 output usage information
 ```
 

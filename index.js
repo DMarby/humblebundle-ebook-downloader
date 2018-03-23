@@ -29,6 +29,7 @@ commander
   .option('-f, --format <format>', util.format('What format to download the ebook in (%s)', ALLOWED_FORMATS.join(', ')), 'epub')
   .option('--auth-token <auth-token>', 'Optional: If you want to run headless, you can specify your authentication cookie from your browser (_simpleauth_sess)')
   .option('-a, --all', 'Download all bundles')
+  .option('--debug', 'Enable debug logging', false)
   .parse(process.argv)
 
 if (ALLOWED_FORMATS.indexOf(commander.format) === -1) {
@@ -115,6 +116,12 @@ function validateSession (next, config) {
 
 function saveConfig (config, callback) {
   fs.writeFile(configPath, JSON.stringify(config, null, 4), 'utf8', callback)
+}
+
+function debug () {
+  if (commander.debug) {
+    console.log(colors.yellow('[DEBUG] ' + util.format.apply(this, arguments)))
+  }
 }
 
 function authenticate (next) {
