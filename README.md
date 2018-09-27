@@ -17,6 +17,7 @@ $ humblebundle-ebook-downloader --help
 
   Options:
 
+    -k, --key                                  gamekey (from hb url)
     -V, --version                              output the version number
     -d, --download-folder <downloader_folder>  Download folder (default: download)
     -l, --download-limit <download_limit>      Parallel download limit (default: 1)
