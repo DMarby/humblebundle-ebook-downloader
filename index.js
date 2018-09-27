@@ -25,6 +25,7 @@ const ALLOWED_FORMATS = SUPPORTED_FORMATS.concat(['all']).sort()
 
 commander
   .version(packageInfo.version)
+  .option('-k, --key <bundle_key>', 'Bundle key (from url)')
   .option('-d, --download-folder <downloader_folder>', 'Download folder', 'download')
   .option('-l, --download-limit <download_limit>', 'Parallel download limit', 1)
   .option('-f, --format <format>', util.format('What format to download the ebook in (%s)', ALLOWED_FORMATS.join(', ')), 'epub')
@@ -104,7 +105,7 @@ function validateSession (next, config) {
     }
 
     if (response.statusCode === 200) {
-      return next(null, session)
+      return next(null, session, commander.key)
     }
 
     if (response.statusCode === 401 && !commander.authToken) {
@@ -172,7 +173,7 @@ function authenticate (next) {
             return next(error)
           }
 
-          next(null, sessionCookie.value)
+          next(null, sessionCookie, commander.key)
         })
       })
       .catch((error) => next(error))
@@ -233,7 +234,7 @@ function fetchOrders (next, session) {
             return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
           }
 
-          console.log('Fetched bundle information... (%s/%s)', colors.yellow(++done), colors.yellow(total))
+          process.stdout.write(`Fetched bundle information... (${colors.yellow(++done)}/${colors.red(total)})\r`)
           next(null, response.body)
         })
       }, next)
@@ -248,6 +249,26 @@ function fetchOrders (next, session) {
 
       next(null, filteredOrders, session)
     })
+  })
+}
+
+function fetchOrder (next, session, gamekey) {
+  console.log(`Fetching bundle ${gamekey}...`)
+
+  request.get({
+    url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', gamekey),
+    headers: getRequestHeaders(session),
+    json: true
+  }, (error, response) => {
+    if (error) {
+      return next(error)
+    }
+
+    if (response.statusCode !== 200) {
+      return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
+    }
+
+    next(null, [response.body], session)
   })
 }
 
@@ -484,9 +505,10 @@ function downloadBundles (next, bundles) {
 flow.then(loadConfig)
 flow.then(validateSession)
 flow.when((session) => !session, authenticate)
-flow.then(fetchOrders)
-flow.when(!commander.all, displayOrders)
-flow.when(commander.all, sortBundles)
+flow.when(commander.key, fetchOrder)
+flow.when(!commander.key, fetchOrders)
+flow.when(!commander.key && !commander.all, displayOrders)
+flow.when(!commander.key && commander.all, sortBundles)
 flow.then(downloadBundles)
 
 flow.catch((error) => {
