@@ -195,81 +195,77 @@ function authenticate (next) {
     .catch((error) => next(error))
 }
 
-function fetchOrders (next, session) {
+function fetchOrders (next, session, gamekey) {
   console.log('Fetching bundles...')
-
-  request.get({
-    url: 'https://www.humblebundle.com/api/v1/user/order?ajax=true',
-    headers: getRequestHeaders(session),
-    json: true
-  }, (error, response) => {
-    if (error) {
-      return next(error)
-    }
-
-    if (response.statusCode !== 200) {
-      return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
-    }
-
-    var total = response.body.length
-    var done = 0
-
-    var orderInfoLimiter = new Bottleneck({
-      maxConcurrent: 5,
-      minTime: 500
-    })
-
-    async.concat(response.body, (item, next) => {
-      orderInfoLimiter.submit((next) => {
-        request.get({
-          url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', item.gamekey),
-          headers: getRequestHeaders(session),
-          json: true
-        }, (error, response) => {
-          if (error) {
-            return next(error)
-          }
-
-          if (response.statusCode !== 200) {
-            return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
-          }
-
-          process.stdout.write(`Fetched bundle information... (${colors.yellow(++done)}/${colors.red(total)})\r`)
-          next(null, response.body)
-        })
-      }, next)
-    }, (error, orders) => {
+  if (gamekey) {
+    request.get({
+      url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', gamekey),
+      headers: getRequestHeaders(session),
+      json: true
+    }, (error, response) => {
       if (error) {
         return next(error)
       }
 
-      var filteredOrders = orders.filter((order) => {
-        return flatten(keypath.get(order, 'subproducts.[].downloads.[].platform')).indexOf('ebook') !== -1
+      if (response.statusCode !== 200) {
+        return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
+      }
+      next(null, [response.body], session)
+    })
+  } else {
+    request.get({
+      url: 'https://www.humblebundle.com/api/v1/user/order?ajax=true',
+      headers: getRequestHeaders(session),
+      json: true
+    }, (error, response) => {
+      if (error) {
+        return next(error)
+      }
+
+      if (response.statusCode !== 200) {
+        return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
+      }
+
+      var total = response.body.length
+      var done = 0
+
+      var orderInfoLimiter = new Bottleneck({
+        maxConcurrent: 5,
+        minTime: 500
       })
 
-      next(null, filteredOrders, session)
+      async.concat(response.body, (item, next) => {
+        orderInfoLimiter.submit((next) => {
+          request.get({
+            url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', item.gamekey),
+            headers: getRequestHeaders(session),
+            json: true
+          }, (error, response) => {
+            if (error) {
+              return next(error)
+            }
+
+            if (response.statusCode !== 200) {
+              return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
+            }
+
+            process.stdout.write(`Fetched bundle information... (${colors.yellow(++done)}/${colors.red(total)})\r`)
+            next(null, response.body)
+          })
+        }, next)
+      }, (error, orders) => {
+        if (error) {
+          return next(error)
+        }
+
+        var filteredOrders = orders.filter((order) => {
+          return flatten(keypath.get(order, 'subproducts.[].downloads.[].platform')).indexOf('ebook') !== -1
+        })
+
+        next(null, filteredOrders, session)
+      })
     })
-  })
-}
-
-function fetchOrder (next, session, gamekey) {
-  console.log(`Fetching bundle ${gamekey}...`)
-
-  request.get({
-    url: util.format('https://www.humblebundle.com/api/v1/order/%s?ajax=true', gamekey),
-    headers: getRequestHeaders(session),
-    json: true
-  }, (error, response) => {
-    if (error) {
-      return next(error)
-    }
-
-    if (response.statusCode !== 200) {
-      return next(new Error(util.format('Could not fetch orders, unknown error, status code:', response.statusCode)))
-    }
-
-    next(null, [response.body], session)
-  })
+  }
 }
 
 function getWindowHeight () {
@@ -505,8 +501,7 @@ function downloadBundles (next, bundles) {
 flow.then(loadConfig)
 flow.then(validateSession)
 flow.when((session) => !session, authenticate)
-flow.when(commander.key, fetchOrder)
-flow.when(!commander.key, fetchOrders)
+flow.then(fetchOrders)
 flow.when(!commander.key && !commander.all, displayOrders)
 flow.when(!commander.key && commander.all, sortBundles)
 flow.then(downloadBundles)
