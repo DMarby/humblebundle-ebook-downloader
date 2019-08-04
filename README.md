@@ -27,6 +27,20 @@ $ humblebundle-ebook-downloader --help
     -h, --help                                 output usage information
 ```
 
+## Docker instructions
+
+### Build Docker image
+
+```
+$ docker build -t hbbedl .
+```
+
+### Run
+
+```
+docker run -v /location/to/dl/books/to:/tmp/mydata --rm -it hbbedl:latest -d /tmp/mydata -f all --auth-token "auth_string_here"
+```
+
 ## Contributors
 - [J. Longman](https://github.com/jlongman)
 - [Johannes Löthberg](https://github.com/kyrias)
