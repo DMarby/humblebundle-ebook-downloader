@@ -298,12 +298,10 @@ function ensureFolderCreated (folder, callback) {
       return callback(error)
     }
 
-    mkdirp(folder, (error) => {
-      if (error) {
-        return callback(error)
-      }
-
+    mkdirp(folder).then(made => {
       callback()
+    }).catch(error => {
+      callback(error)
     })
   })
 }

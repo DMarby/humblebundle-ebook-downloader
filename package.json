@@ -21,7 +21,7 @@
     "colors": "^1.3.3",
     "commander": "^2.19.0",
     "inquirer": "^6.2.2",
-    "mkdirp": "^0.5.1",
+    "mkdirp": "^1.0.4",
     "nasa-keypath": "0.0.1",
     "nightmare": "^3.0.1",
     "request": "^2.88.0",
