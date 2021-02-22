@@ -27,13 +27,14 @@ commander
   .version(packageInfo.version)
   .option('-d, --download-folder <downloader_folder>', 'Download folder', 'download')
   .option('-l, --download-limit <download_limit>', 'Parallel download limit', 1)
-  .option('-f, --format <format>', util.format('What format to download the ebook in (%s)', ALLOWED_FORMATS.join(', ')), 'epub')
+  .option('-f, --format <format...>', util.format('What format (comma separated) to download the ebook in (%s)', ALLOWED_FORMATS.join(', ')), 'epub')
   .option('--auth-token <auth-token>', 'Optional: If you want to run headless, you can specify your authentication cookie from your browser (_simpleauth_sess)')
   .option('-a, --all', 'Download all bundles')
   .option('--debug', 'Enable debug logging', false)
   .parse(process.argv)
 
-if (ALLOWED_FORMATS.indexOf(commander.format) === -1) {
+commander.format = commander.format.split(",")
+if (!commander.format.every(i => ALLOWED_FORMATS.includes(i))) {
   console.error(colors.red('Invalid format selected.'))
   commander.help()
 }
@@ -427,8 +428,8 @@ function downloadBundles (next, bundles) {
         if (bundleFormats.indexOf(normalizedFormat) === -1 && SUPPORTED_FORMATS.indexOf(normalizedFormat) !== -1) {
           bundleFormats.push(normalizedFormat)
         }
-
-        return commander.format === 'all' || normalizedFormat === commander.format
+		
+        return commander.format.indexOf('all') !== -1 || commander.format.indexOf(normalizedFormat) !== -1
       })
 
       for (var filteredDownload of filteredDownloadStructs) {
@@ -441,7 +442,7 @@ function downloadBundles (next, bundles) {
     }
 
     if (!bundleDownloads.length) {
-      console.log(colors.red('No downloads found matching the right format (%s) for bundle (%s), available formats: (%s)'), commander.format, bundleName, bundleFormats.sort().join(', '))
+      console.log(colors.red('No downloads found matching the right format (%s) for bundle (%s), available formats: (%s)'), commander.format.join(", "), bundleName, bundleFormats.sort().join(', '))
       continue
     }
 
@@ -451,7 +452,7 @@ function downloadBundles (next, bundles) {
   }
 
   if (!downloads.length) {
-    console.log(colors.red('No downloads found matching the right format (%s), exiting'), commander.format)
+    console.log(colors.red('No downloads found matching the right format (%s), exiting'), commander.format.join(", "))
   }
 
   async.each(downloads, (download, next) => {
