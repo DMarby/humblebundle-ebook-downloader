@@ -30,6 +30,7 @@ commander
   .option('-f, --format <format>', util.format('What format to download the ebook in (%s)', ALLOWED_FORMATS.join(', ')), 'epub')
   .option('--auth-token <auth-token>', 'Optional: If you want to run headless, you can specify your authentication cookie from your browser (_simpleauth_sess)')
   .option('-a, --all', 'Download all bundles')
+  .option('--max-filename-length <length>', 'Optional: If necessary, shortens the file name length to a certain length', -1)
   .option('--debug', 'Enable debug logging', false)
   .parse(process.argv)
 
@@ -369,7 +370,17 @@ function downloadBook (bundle, name, download, callback) {
       return callback(error)
     }
 
-    var fileName = util.format('%s%s', name.trim(), getExtension(normalizeFormat(download.name)))
+    var fileName = name.trim()
+    var fileExtension = getExtension(normalizeFormat(download.name))
+
+    if (commander.maxFilenameLength !== -1) {
+      if (fileName.length + fileExtension.length > commander.maxFilenameLength) {
+        const ellipsis = "... "
+        fileName = util.format('%s%s', fileName.substring(0, commander.maxFilenameLength-fileExtension.length-ellipsis.length), ellipsis)
+      }
+    }
+
+    var fileName = util.format('%s%s', fileName, fileExtension)
     var filePath = path.resolve(downloadPath, sanitizeFilename(fileName))
 
     checkSignatureMatch(filePath, download, (error, matches) => {
